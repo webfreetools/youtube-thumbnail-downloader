@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Info Extractor - Get Thumbnails, Titles and Descriptions</title>
+    <meta name="description" content="Extract YouTube video thumbnails, titles and descriptions instantly. No API needed. Download thumbnails and copy video info with one click.">
+    <meta name="keywords" content="YouTube, video info, thumbnail download, video title, video description">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="YouTube Video Info Extractor">
+    <meta property="og:description" content="Get YouTube video thumbnails, titles and descriptions instantly">
+    <style>
+        :root {
+            --primary: #4285f4;
+            --success: #34a853;
+            --danger: #ea4335;
+            --light-bg: #f8f9fa;
+            --border: #dfe1e5;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+        }
+        header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        h1 {
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        #input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #videoUrl {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        #fetchBtn {
+            padding: 12px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        #fetchBtn:hover {
+            background-color: #3367d6;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 15px;
+            color: var(--primary);
+        }
+        #results {
+            margin-top: 30px;
+            animation: fadeIn 0.5s ease;
+        }
+        .thumbnail-container {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .thumbnail {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .download-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background-color: var(--success);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .download-btn:hover {
+            background-color: #2d9246;
+        }
+        .info-box {
+            background-color: var(--light-bg);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border-left: 4px solid var(--primary);
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+        .copy-btn {
+            margin-left: 10px;
+            padding: 5px 10px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .copy-btn:hover {
+            background-color: #3367d6;
+        }
+        .error {
+            color: var(--danger);
+            padding: 15px;
+            background-color: #fde8e8;
+            border-radius: 4px;
+            text-align: center;
+        }
+        footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>YouTube Video Info Extractor</h1>
+        <p class="description">Get YouTube video thumbnails, titles and descriptions instantly. No API needed.</p>
+    </header>
+
+    <div id="input-container">
+        <input type="text" id="videoUrl" placeholder="Paste YouTube URL here (e.g., https://youtu.be/dQw4w9WgXcQ)" aria-label="YouTube video URL">
+        <button id="fetchBtn" onclick="fetchVideoInfo()">Get Video Info</button>
+    </div>
+
+    <div id="loading">Loading video information...</div>
+
+    <div id="results"></div>
+
+    <footer>
+        <p>© 2023 YouTube Video Info Extractor. This tool works entirely in your browser.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add event listener for Enter key
+            document.getElementById('videoUrl').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    fetchVideoInfo();
+                }
+            });
+        });
+
+        async function fetchVideoInfo() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const videoId = getVideoId(videoUrl);
+            
+            if (!videoId) {
+                showError('Please enter a valid YouTube URL');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+
+            try {
+                // First try the oEmbed API
+                const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+                const response = await fetch(oEmbedUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResults({
+                        title: data.title,
+                        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+                        videoId: videoId
+                    });
+                } else {
+                    // Fallback to iframe method if oEmbed fails
+                    await fetchWithIframe(videoId);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Could not fetch video information. Please try a different video.');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        async function fetchWithIframe(videoId) {
+            return new Promise((resolve) => {
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                
+                iframe.onload = function() {
+                    setTimeout(() => {
+                        try {
+                            const title = iframe.contentDocument?.title || 'Untitled';
+                            displayResults({
+                                title: title.replace(' - YouTube', ''),
+                                thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+                                videoId: videoId
+                            });
+                            resolve();
+                        } catch (e) {
+                            showError('Could not fetch video information. Please try a different video.');
+                            resolve();
+                        } finally {
+                            document.body.removeChild(iframe);
+                        }
+                    }, 1500);
+                };
+                
+                iframe.onerror = function() {
+                    showError('Could not fetch video information. Please try a different video.');
+                    document.body.removeChild(iframe);
+                    resolve();
+                };
+                
+                document.body.appendChild(iframe);
+            });
+        }
+
+        function getVideoId(url) {
+            if (!url) return null;
+            
+            // Handle various YouTube URL formats
+            const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+            const match = url.match(regExp);
+            
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            
+            // Thumbnail section
+            const thumbnailHTML = `
+                <div class="thumbnail-container">
+                    <img src="${data.thumbnailUrl}" 
+                         class="thumbnail" 
+                         alt="YouTube thumbnail for video: ${data.title}"
+                         onerror="this.src='https://img.youtube.com/vi/${data.videoId}/hqdefault.jpg'">
+                    <a href="https://img.youtube.com/vi/${data.videoId}/maxresdefault.jpg" 
+                       class="download-btn" 
+                       download="youtube-thumbnail-${data.videoId}.jpg">
+                        Download Thumbnail
+                    </a>
+                </div>
+            `;
+            
+            // Title section
+            const titleHTML = `
+                <div class="info-box">
+                    <h3>Video Title</h3>
+                    <p id="videoTitle">${data.title || 'Not available'}</p>
+                    <button class="copy-btn" onclick="copyToClipboard('videoTitle')">
+                        Copy Title
+                    </button>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = thumbnailHTML + titleHTML;
+        }
+
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            const text = element.innerText;
+            if (!text || text === 'Not available') {
+                alert('Nothing to copy');
+                return;
+            }
+            
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    // Visual feedback
+                    const btn = event.target;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        btn.textContent = 'Copy Title';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Copy failed:', err);
+                    alert('Failed to copy. Please try again.');
+                });
+        }
+
+        function showError(message) {
+            document.getElementById('results').innerHTML = `
+                <div class="error">${message}</div>
+            `;
+        }
+    </script>
+</body>
+</html>
